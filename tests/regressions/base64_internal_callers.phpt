@@ -27,7 +27,7 @@ class OfflineBase64Soap extends SoapClient
     public string $captured = '';
     public function __doRequest(
         string $request, string $location, string $action, int $version,
-        bool $oneWay = false
+        bool $oneWay = false, ?string $uriParserClass = null
     ): ?string {
         $this->captured = $request;
         return '';
