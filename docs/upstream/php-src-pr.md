@@ -40,11 +40,10 @@ Include `ext/standard/tests/url/gh24492_base64_encode_oom.phpt`, which proves th
 ## Source files to send upstream
 
 1. `ext/standard/base64.c`
-2. `ext/standard/base64.h`
-3. `ext/standard/tests/url/gh24492_base64_encode_oom.phpt`
+2. `ext/standard/tests/url/gh24492_base64_encode_oom.phpt`
 
 No ForgeBlue CI scripts, runner artifacts, or unrelated source files belong in the upstream PR.
 
 ## Fork and branch
 
-The connected GitHub tool currently supports committing to repositories where write access exists, but exposes **no Fork action**. The upstream fork `forgeblueai/php-src` must be created through https://github.com/php/php-src/fork. After it exists, a topic branch must start from the actual current `PHP-8.4` commit. A PR from the ForgeBlue **lab** repository cannot substitute for a fork of `php-src`.
+The fork `forgeblueai/php-src` and draft upstream PR [#24618](https://github.com/php/php-src/pull/24618) now exist. The initial submitted revision still touched `base64.h`; this refinement moves the private flag to `base64.c` and will require an additional reviewed commit on the existing topic branch. Do not open a duplicate PR.

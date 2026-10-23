@@ -4,7 +4,7 @@
 
 ## Fix
 
-Add an internal `PHP_BASE64_FALLIBLE` option used **only** by the PHP `base64_encode()` entry point. Make the five generic and x86 SIMD encoding allocation sites honor that option through `zend_string_safe_falloc()`; return `NULL` before dereferencing the failed allocation. The PHP entry point calls `RETURN_OOM()`.
+Add an implementation-private `PHP_BASE64_FALLIBLE` option (defined in `base64.c`, not the exported header) used **only** by the PHP `base64_encode()` entry point. Make the five generic and x86 SIMD encoding allocation sites honor that option through `zend_string_safe_falloc()`; return `NULL` before dereferencing the failed allocation. The PHP entry point calls `RETURN_OOM()`.
 
 Native C helpers called without the new flag (including existing callers using `PHP_BASE64_NO_PADDING`) preserve their non-fallible behavior, avoiding a breaking change to the exported helper contract.
 
