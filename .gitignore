@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.phpunit.result.cache
+php-src/
+builds/
+cache/
+evidence/
+reports/
+*.log
+*.core
+core.*
+.DS_Store

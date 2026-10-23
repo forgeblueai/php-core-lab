@@ -1,0 +1,107 @@
+name: PHP Core Baseline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/baseline.yml'
+      - 'configs/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'oom_cases/**'
+      - 'README.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: php-core-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    # Do not execute code from forks in this first experimental workflow.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ matrix.snapshot }} / debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        snapshot:
+          - php-8.5.12
+          - php-8.4.27
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install PHP build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake bison re2c pkg-config build-essential \
+            libxml2-dev libsqlite3-dev libonig-dev libssl-dev
+
+      - name: Fetch and verify exact PHP source revision
+        env:
+          SNAPSHOT: ${{ matrix.snapshot }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          python3 - <<'PY' > evidence/source-sha.txt
+          import json, os
+          lock = json.load(open("configs/refs.lock.json", encoding="utf-8"))
+          print(lock["entries"][os.environ["SNAPSHOT"]])
+          PY
+          PHP_SHA="$(cat evidence/source-sha.txt)"
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin "$PHP_SHA"
+          git -C php-src checkout -q --detach FETCH_HEAD
+          test "$(git -C php-src rev-parse HEAD)" = "$PHP_SHA"
+          echo "Verified source $PHP_SHA"
+
+      - name: Configure and compile PHP CLI (debug)
+        run: |
+          set -Eeuo pipefail
+          (
+            cd php-src
+            ./buildconf --force
+            ./configure --disable-all --enable-cli --enable-debug \
+              --enable-zend-test --enable-session --enable-xml \
+              --with-libxml --enable-mbstring
+            make -j2
+          ) > evidence/build.log 2>&1 || {
+            tail -n 100 evidence/build.log
+            exit 1
+          }
+          ./php-src/sapi/cli/php -n -v | tee evidence/php-version.txt
+
+      - name: Run functional PHPT smoke tests
+        run: |
+          set -Eeuo pipefail
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          (
+            cd php-src
+            "$PHP_BINARY" -n run-tests.php -q -p "$PHP_BINARY" ../tests/*.phpt
+          ) 2>&1 | tee evidence/phpt.log
+
+      - name: Observe bounded OOM cases
+        run: |
+          python3 scripts/probe.py \
+            --php "$PWD/php-src/sapi/cli/php" \
+            --cases oom_cases \
+            --output evidence/oom-results.json \
+            --snapshot "${{ matrix.snapshot }}"
+
+      - name: Save versioned evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-baseline-${{ matrix.snapshot }}-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
