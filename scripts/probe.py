@@ -14,6 +14,7 @@ CASES = (
     "pack_pad",
     "bin2hex_growth",
     "base64_encode_growth",
+    "base64_encode_13m",
     "urlencode_growth",
 )
 AS_LIMIT = 512 * 1024 * 1024
@@ -45,6 +46,7 @@ def observe(binary: Path, script: Path):
         return {
             "returncode": result.returncode,
             "begin_seen": "FB_BEGIN" in result.stdout,
+            "input_ready_seen": "FB_INPUT_READY" in result.stdout,
             "shutdown_seen": "FB_SHUTDOWN" in result.stdout,
             "hard_limit_message": "Hard memory limit" in text,
             "soft_limit_message": "Allowed memory size" in text,

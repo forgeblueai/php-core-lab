@@ -26,3 +26,9 @@ Expected pre-run: result **unknown**. Do not infer outcome from code without an 
 ## Candidate upstream contribution criteria
 
 Only propose an upstream PHPT/patch after verifying the result and confirming no existing PR covers the same function. Any C-level fix must specify whether the public helper preserves non-NULL guarantees; otherwise every call site must be adjusted. If a distinct, undisclosed security issue emerges, stop public reproduction and use PHP's private security reporting channel.
+
+## First CI observation: one result is inconclusive
+
+Initial run [39992715191](https://github.com/forgeblueai/php-core-lab/actions/runs/39992715191) built both pinned releases successfully and recorded `base64_encode_growth` exit code **255** on each; however, the original probe did not print a marker after allocating the 14 MiB input. This means the observation does **not** establish that `base64_encode()` was entered, and does not establish a Base64-specific OOM regression. The comparison job initially failed on a stale test assertion of 10 rows after adding the sixth case; the expected row count is now derived dynamically.
+
+A follow-up experiment introduces `FB_INPUT_READY` before the Base64 call, preserves the original 14 MiB probe, and adds a smaller 13 MiB input case. `scripts/probe.py` records the input-ready marker; the comparison includes it. Do not claim Base64-specific behavior until those markers and diagnostics are evaluated on a completed CI run.

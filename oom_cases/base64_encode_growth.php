@@ -5,5 +5,6 @@ register_shutdown_function(static function (): void { echo "FB_SHUTDOWN\n"; });
 echo "FB_BEGIN\n";
 // 14 MiB of source produces about 18.67 MiB of Base64 output.
 $input = str_repeat("A", 14 * 1024 * 1024);
+echo "FB_INPUT_READY\n";
 $result = base64_encode($input);
 echo "FB_LENGTH=", strlen($result), "\n";
