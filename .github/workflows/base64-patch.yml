@@ -1,0 +1,164 @@
+name: PHP Base64 OOM Patch Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/base64-patch.yml'
+      - 'patches/**'
+      - 'scripts/check_base64_patch.py'
+      - 'tests/regressions/**'
+      - 'oom_cases/base64_encode_13m.php'
+      - 'scripts/probe.py'
+      - 'configs/refs.lock.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: php-base64-patch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  before-after:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ matrix.snapshot }} / debug before-after
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        snapshot: [php-8.5.12, php-8.4.27]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake bison re2c pkg-config build-essential \
+            libxml2-dev libsqlite3-dev libonig-dev libssl-dev
+      - name: Fetch exact source and verify SHA
+        env:
+          SNAPSHOT: ${{ matrix.snapshot }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          python3 - <<'PY' > evidence/source-sha.txt
+          import json, os
+          print(json.load(open('configs/refs.lock.json'))['entries'][os.environ['SNAPSHOT']])
+          PY
+          SHA="$(cat evidence/source-sha.txt)"
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin "$SHA"
+          git -C php-src checkout -q --detach FETCH_HEAD
+          test "$(git -C php-src rev-parse HEAD)" = "$SHA"
+      - name: Build unmodified debug PHP
+        run: |
+          set -Eeuo pipefail
+          (cd php-src && ./buildconf --force && \
+           ./configure --disable-all --enable-cli --enable-debug \
+             --enable-zend-test --enable-session --enable-xml \
+             --with-libxml --enable-mbstring && make -j2) \
+            > evidence/build-before.log 2>&1 || { tail -n 100 evidence/build-before.log; exit 1; }
+      - name: Observe baseline without patch
+        run: |
+          python3 scripts/probe.py --php "$PWD/php-src/sapi/cli/php" \
+            --cases oom_cases --output evidence/before.json \
+            --snapshot "${{ matrix.snapshot }}" --build-config debug \
+            --source-sha-file evidence/source-sha.txt
+      - name: Apply Base64 patch and rebuild changed files
+        run: |
+          set -Eeuo pipefail
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          git -C php-src apply ../patches/base64-fallible.patch
+          (cd php-src && make -j2) > evidence/build-after.log 2>&1 || {
+            tail -n 100 evidence/build-after.log
+            exit 1
+          }
+          git -C php-src diff --stat > evidence/patch-diff-stat.txt
+      - name: Observe patched engine
+        run: |
+          python3 scripts/probe.py --php "$PWD/php-src/sapi/cli/php" \
+            --cases oom_cases --output evidence/after.json \
+            --snapshot "${{ matrix.snapshot }}" --build-config debug-patched \
+            --source-sha-file evidence/source-sha.txt
+      - name: Require precise before-after behavior
+        run: |
+          python3 scripts/check_base64_patch.py \
+            --before evidence/before.json --after evidence/after.json \
+            --output evidence/check.json
+      - name: Validate PHPT regressions after patch
+        run: |
+          set -Eeuo pipefail
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          (cd php-src && "$PHP_BINARY" -n run-tests.php -q -p "$PHP_BINARY" \
+            ../tests/regressions/*.phpt ext/standard/tests/url/base64_*.phpt) 2>&1 | tee evidence/phpt-patched.log
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-base64-before-after-${{ matrix.snapshot }}-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
+  sanitized:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: php-8.5.12 / patched ASan+UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      USE_ZEND_ALLOC: '0'
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang autoconf automake bison re2c pkg-config make \
+            libxml2-dev libsqlite3-dev libonig-dev libssl-dev
+      - name: Fetch and verify pinned source
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          SHA="$(python3 -c "import json; print(json.load(open('configs/refs.lock.json'))['entries']['php-8.5.12'])")"
+          echo "$SHA" > evidence/source-sha.txt
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin "$SHA"
+          git -C php-src checkout -q --detach FETCH_HEAD
+          test "$(git -C php-src rev-parse HEAD)" = "$SHA"
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          git -C php-src apply ../patches/base64-fallible.patch
+      - name: Build patched engine with sanitizers
+        run: |
+          set -Eeuo pipefail
+          (cd php-src && ./buildconf --force && \
+           CC=clang CXX=clang++ CFLAGS="-O0 -g -fno-omit-frame-pointer" \
+           ./configure --disable-all --enable-cli --enable-debug \
+             --enable-address-sanitizer --enable-undefined-sanitizer \
+             --enable-zend-test --enable-session --enable-xml \
+             --with-libxml --enable-mbstring && make -j2) \
+            > evidence/build.log 2>&1 || { tail -n 100 evidence/build.log; exit 1; }
+      - name: Run safe Base64 correctness PHPT and smoke cases
+        run: |
+          set -Eeuo pipefail
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          (cd php-src && "$PHP_BINARY" -n run-tests.php -q --asan -j1 \
+            -p "$PHP_BINARY" ../tests/regressions/base64_correctness.phpt \
+            ../tests/*.phpt ext/standard/tests/url/base64_*.phpt) 2>&1 | tee evidence/phpt.log
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-base64-patched-asan-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
