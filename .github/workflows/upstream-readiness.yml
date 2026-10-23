@@ -1,0 +1,146 @@
+name: PHP Base64 Upstream Readiness
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/upstream-readiness.yml'
+      - 'patches/base64-fallible.patch'
+      - 'tests/regressions/**'
+      - 'configs/refs.lock.json'
+      - 'docs/upstream/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: php-base64-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zts:
+    # Never run unreviewed fork PRs with this research workflow.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ matrix.snapshot }} / patched ZTS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        snapshot:
+          - php-8.4.27
+          - php-8.5.12
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install C toolchain and extension headers
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake bison re2c pkg-config build-essential \
+            libxml2-dev libsqlite3-dev libonig-dev libssl-dev
+
+      - name: Fetch pinned PHP source and apply candidate patch
+        env:
+          SNAPSHOT: ${{ matrix.snapshot }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          python3 - <<'PY' > evidence/source-sha.txt
+          import json, os
+          data = json.load(open('configs/refs.lock.json', encoding='utf-8'))
+          print(data['entries'][os.environ['SNAPSHOT']])
+          PY
+          SHA="$(cat evidence/source-sha.txt)"
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin "$SHA"
+          git -C php-src checkout -q --detach FETCH_HEAD
+          test "$(git -C php-src rev-parse HEAD)" = "$SHA"
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          git -C php-src apply ../patches/base64-fallible.patch
+          git -C php-src diff --stat | tee evidence/patch-diff-stat.txt
+
+      - name: Build patched PHP with Zend Thread Safety
+        run: |
+          set -Eeuo pipefail
+          (
+            cd php-src
+            ./buildconf --force
+            ./configure --disable-all --enable-cli --enable-debug \
+              --enable-zts --enable-zend-test --enable-session \
+              --enable-xml --with-libxml --enable-mbstring \
+              --with-openssl --with-iconv --enable-soap
+            make -j2
+          ) > evidence/zts-build.log 2>&1 || {
+            tail -n 110 evidence/zts-build.log
+            exit 1
+          }
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          "$PHP_BINARY" -n -v | tee evidence/php-version.txt
+          "$PHP_BINARY" -n -i | grep -F 'Thread Safety => enabled' | tee evidence/thread-safety.txt
+          "$PHP_BINARY" -n -m | tee evidence/php-modules.txt
+          for extension in openssl iconv soap; do
+            grep -x "$extension" evidence/php-modules.txt
+          done
+
+      - name: Run upstream Base64 tests and offline C-caller smoke test
+        run: |
+          set -Eeuo pipefail
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          (
+            cd php-src
+            "$PHP_BINARY" -n run-tests.php -q -p "$PHP_BINARY" \
+              ext/standard/tests/url/base64_*.phpt \
+              ../tests/regressions/base64_correctness.phpt \
+              ../tests/regressions/base64_oom.phpt \
+              ../tests/regressions/base64_internal_callers.phpt
+          ) 2>&1 | tee evidence/phpt-zts.log || {
+            echo 'PHPT test failure; collecting differences:' | tee evidence/failure-diff.txt
+            find tests/regressions -type f -name 'base64_internal_callers.diff' \
+              -print -exec cat {} + | tee -a evidence/failure-diff.txt
+            exit 1
+          }
+
+      - name: Publish logs for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-base64-zts-${{ matrix.snapshot }}-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
+
+  current-branch:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: Current PHP-8.4 patch applicability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm patch applies to fresh PHP-8.4 branch
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin refs/heads/PHP-8.4
+          git -C php-src checkout -q --detach FETCH_HEAD
+          git -C php-src rev-parse HEAD | tee evidence/branch-sha.txt
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          echo "Patch cleanly applies to current PHP-8.4 branch." | tee evidence/applicability.txt
+      - name: Preserve commit and check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-base64-branch-compatibility-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
