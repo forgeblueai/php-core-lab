@@ -1,0 +1,35 @@
+name: Verify PHP Upstream Submission Kit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/upstream-kit.yml"
+      - "scripts/submit_upstream_base64.sh"
+      - "patches/base64-fallible.patch"
+      - "upstream/ext/standard/tests/url/gh24492_base64_encode_oom.phpt"
+      - "docs/upstream/PR_BODY.md"
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check shell syntax
+        run: bash -n scripts/submit_upstream_base64.sh
+      - name: Stage exact upstream files without publishing
+        run: |
+          set -Eeuo pipefail
+          bash scripts/submit_upstream_base64.sh --prepare-only --workdir "$RUNNER_TEMP/php-src-gh24492"
+          git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --check
+          test "$(git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --name-only | wc -l)" -eq 3
+          git -C "$RUNNER_TEMP/php-src-gh24492" rev-parse HEAD
+      - name: Report staged changes
+        run: git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --stat
