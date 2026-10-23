@@ -103,7 +103,7 @@ jobs:
           ) 2>&1 | tee evidence/phpt-zts.log || {
             echo 'PHPT test failure; collecting differences:' | tee evidence/failure-diff.txt
             find tests/regressions -type f -name 'base64_internal_callers.diff' \
-              -print -exec cat {} \\; | tee -a evidence/failure-diff.txt
+              -print -exec cat {} + | tee -a evidence/failure-diff.txt
             exit 1
           }
 
