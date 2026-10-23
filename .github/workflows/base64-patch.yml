@@ -95,7 +95,7 @@ jobs:
           set -Eeuo pipefail
           PHP_BINARY="$PWD/php-src/sapi/cli/php"
           (cd php-src && "$PHP_BINARY" -n run-tests.php -q -p "$PHP_BINARY" \
-            ../tests/regressions/*.phpt) 2>&1 | tee evidence/phpt-patched.log
+            ../tests/regressions/*.phpt ext/standard/tests/url/base64_*.phpt) 2>&1 | tee evidence/phpt-patched.log
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -153,7 +153,7 @@ jobs:
           PHP_BINARY="$PWD/php-src/sapi/cli/php"
           (cd php-src && "$PHP_BINARY" -n run-tests.php -q --asan -j1 \
             -p "$PHP_BINARY" ../tests/regressions/base64_correctness.phpt \
-            ../tests/*.phpt) 2>&1 | tee evidence/phpt.log
+            ../tests/*.phpt ext/standard/tests/url/base64_*.phpt) 2>&1 | tee evidence/phpt.log
       - name: Upload sanitized evidence
         if: always()
         uses: actions/upload-artifact@v4
