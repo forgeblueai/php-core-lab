@@ -18,7 +18,8 @@ class ComparisonTests(unittest.TestCase):
         self.lock = self.root / "refs.json"
         self.pins = {"php-8.4.27": "a" * 40, "php-8.5.12": "b" * 40}
         self.lock.write_text(json.dumps({"entries": self.pins}))
-        self.cases = ("control", "sprintf_width", "pack_pad", "bin2hex_growth", "urlencode_growth")
+        self.cases = ("control", "sprintf_width", "pack_pad", "bin2hex_growth",
+    "base64_encode_growth", "urlencode_growth")
         for key, sha in self.pins.items():
             folder = self.input / ("evidence-" + key)
             folder.mkdir(parents=True)

@@ -5,7 +5,8 @@ import csv
 import json
 from pathlib import Path
 
-CASES = ("control", "sprintf_width", "pack_pad", "bin2hex_growth", "urlencode_growth")
+CASES = ("control", "sprintf_width", "pack_pad", "bin2hex_growth",
+    "base64_encode_growth", "urlencode_growth")
 HEADERS = ("snapshot", "source_sha", "build_config", "case", "classification",
            "returncode", "shutdown_seen", "hard_limit_message", "soft_limit_message")
 

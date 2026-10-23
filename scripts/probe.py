@@ -13,6 +13,7 @@ CASES = (
     "sprintf_width",
     "pack_pad",
     "bin2hex_growth",
+    "base64_encode_growth",
     "urlencode_growth",
 )
 AS_LIMIT = 512 * 1024 * 1024
