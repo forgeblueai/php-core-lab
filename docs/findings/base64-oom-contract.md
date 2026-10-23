@@ -32,3 +32,40 @@ Only propose an upstream PHPT/patch after verifying the result and confirming no
 Initial run [39992715191](https://github.com/forgeblueai/php-core-lab/actions/runs/39992715191) built both pinned releases successfully and recorded `base64_encode_growth` exit code **255** on each; however, the original probe did not print a marker after allocating the 14 MiB input. This means the observation does **not** establish that `base64_encode()` was entered, and does not establish a Base64-specific OOM regression. The comparison job initially failed on a stale test assertion of 10 rows after adding the sixth case; the expected row count is now derived dynamically.
 
 A follow-up experiment introduces `FB_INPUT_READY` before the Base64 call, preserves the original 14 MiB probe, and adds a smaller 13 MiB input case. `scripts/probe.py` records the input-ready marker; the comparison includes it. Do not claim Base64-specific behavior until those markers and diagnostics are evaluated on a completed CI run.
+
+## Verified evidence: second run
+
+CI runs (all jobs passed):
+- [Pinned 8.4.27 / 8.5.12 debug builds and evidence comparison, 39993301060](https://github.com/forgeblueai/php-core-lab/actions/runs/39993301060)
+- [8.5.12 ASan/UBSan smoke tests, 39993301061](https://github.com/forgeblueai/php-core-lab/actions/runs/39993301061)
+
+Evidence extracted from the actual `oom-results.json` artifacts, not merely workflow exit status:
+
+| Pinned PHP source | Input size | Ready marker | Exit | Shutdown marker | Diagnostic |
+| --- | --- | --- | --- | --- | --- |
+| 8.4.27 (`00d8bae80154`) | 14 MiB | no | 255 | yes | soft OOM during input construction; tried 14,684,160 bytes |
+| 8.4.27 (`00d8bae80154`) | 13 MiB | yes | 137 | no | PHP hard-limit diagnostic; tried 18,178,048 bytes |
+| 8.5.12 (`136e049ac10b`) | 14 MiB | no | 255 | yes | soft OOM during input construction; tried 14,684,160 bytes |
+| 8.5.12 (`136e049ac10b`) | 13 MiB | yes | 137 | no | PHP hard-limit diagnostic; tried 18,178,048 bytes |
+
+The 13 MiB case prints `FB_INPUT_READY` immediately before calling `base64_encode()`. Thus the **Base64 result allocation**, not source construction, is the failing stage; the output buffer would require about 17.33 MiB before overhead. The 14 MiB case is a control for a *different* failure stage and must not be misclassified as a Base64 allocation result.
+
+The comparison artifact holds **14 rows** across seven bounded cases (including the control). No differences were observed between the two patched release baselines. These observations reproduce behavior linked to **already-public upstream #24492**. They do not establish a new memory corruption or RCE vulnerability, and do not test an upstream patch.
+
+### Caller-contract evidence
+
+| Exported C API caller (8.5.12) | Non-null assumption |
+| --- | --- |
+| `ext/standard/password.c:56–57` | Immediately reads `ZSTR_LEN(buffer)` |
+| `ext/iconv/iconv.c:1112–1114` | Immediately reads `ZSTR_LEN(encoded)` |
+| `ext/soap/php_http.c:45–49` | Appends result with `smart_str_append()` |
+| `ext/standard/http_fopen_wrapper.c:831–835` | Appends result with `smart_str_append()` |
+| `ext/openssl/openssl_backend_common.c:1910–1913` | Replaces owned output buffer with the returned string |
+
+A focused future upstream fix should either preserve the existing non-null C helper contract while adding a separately fallible PHP userland path, or update and verify *every* applicable C caller. The implementation also needs SIMD-aware coverage. These are **design constraints**, not evidence of a newly exploited null-pointer bug.
+
+### Decision
+
+- Confirmed: PHP 8.4.27 and 8.5.12 produce hard-limit process termination in the 13 MiB Base64 case, with no shutdown callback execution.
+- Not confirmed: new vulnerability, exploitability, or a PHP core patch that fixes the behavior.
+- Action: preserve this evidence in ForgeBlue's research lab and coordinate around the already-open #24492/#24548 work rather than submit a competing unreviewed C patch.
