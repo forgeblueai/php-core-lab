@@ -6,7 +6,7 @@
 
 Existing extension helpers `php_base64_encode()` / `php_base64_encode_ex()` preserve non-fallible allocation semantics with flags 0 (default) and `PHP_BASE64_NO_PADDING` (1).
 
-A new internal bit `PHP_BASE64_FALLIBLE` (2) is passed only by `PHP_FUNCTION(base64_encode)`. All five optimized and generic encoding implementations use `zend_string_safe_falloc(..., fallible)` and return NULL if the allocation fails; the userland wrapper then calls `RETURN_OOM()`. The original shared C helper defaults remain unchanged, so existing internal callers are not newly exposed to NULL returns for their normal flags.
+A new translation-unit-private bit `PHP_BASE64_FALLIBLE` (2) is passed only by `PHP_FUNCTION(base64_encode)`. All five optimized and generic encoding implementations use `zend_string_safe_falloc(..., fallible)` and return NULL if the allocation fails; the userland wrapper then calls `RETURN_OOM()`. The original shared C helper defaults remain unchanged, so existing internal callers are not newly exposed to NULL returns for their normal flags.
 
 The patch covers generic, AVX512-VBMI, AVX512, AVX2/SSSE3, and SSSE3 code paths through five allocation sites; it is important that even CPU-dispatched implementations propagate NULL before dereferencing.
 

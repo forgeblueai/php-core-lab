@@ -29,7 +29,7 @@ jobs:
           set -Eeuo pipefail
           bash scripts/submit_upstream_base64.sh --prepare-only --workdir "$RUNNER_TEMP/php-src-gh24492"
           git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --check
-          test "$(git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --name-only | wc -l)" -eq 3
+          test "$(git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --name-only | wc -l)" -eq 2
           git -C "$RUNNER_TEMP/php-src-gh24492" rev-parse HEAD
       - name: Report staged changes
         run: git -C "$RUNNER_TEMP/php-src-gh24492" diff --cached --stat

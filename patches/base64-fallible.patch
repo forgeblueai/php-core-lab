@@ -1,7 +1,18 @@
 diff --git a/ext/standard/base64.c b/ext/standard/base64.c
 --- a/ext/standard/base64.c
 +++ b/ext/standard/base64.c
-@@ -518,7 +518,11 @@
+@@ -18,7 +18,10 @@
+ #include <string.h>
+ 
+ #include "php.h"
+ #include "base64.h"
++
++/* Private to this translation unit; C API callers retain existing flags. */
++#define PHP_BASE64_FALLIBLE 2
+ 
+ /* {{{ base64 tables */
+ static const char base64_table[] = {
+@@ -518,7 +521,11 @@
  	unsigned char *o;
  	zend_string *result;
  
@@ -14,7 +25,7 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	o = (unsigned char *)ZSTR_VAL(result);
  
  	const __m512i shuffle_splitting = _mm512_setr_epi32(
-@@ -628,7 +632,11 @@
+@@ -628,7 +635,11 @@
  	unsigned char *o;
  	zend_string *result;
  
@@ -27,7 +38,7 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	o = (unsigned char *)ZSTR_VAL(result);
  
  	while (length > 63) {
-@@ -915,7 +923,11 @@
+@@ -915,7 +926,11 @@
  	unsigned char *o;
  	zend_string *result;
  
@@ -40,7 +51,7 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	o = (unsigned char *)ZSTR_VAL(result);
  # if defined(ZEND_INTRIN_AVX2_NATIVE) || defined(ZEND_INTRIN_AVX2_RESOLVER)
  	if (length > 31) {
-@@ -956,7 +968,11 @@
+@@ -956,7 +971,11 @@
  	unsigned char *o;
  	zend_string *result;
  
@@ -53,7 +64,7 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	o = (unsigned char *)ZSTR_VAL(result);
  
  	PHP_BASE64_ENCODE_SSSE3_LOOP;
-@@ -1192,7 +1208,11 @@
+@@ -1192,7 +1211,11 @@
  	unsigned char *p;
  	zend_string *result;
  
@@ -66,7 +77,7 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	p = (unsigned char *)ZSTR_VAL(result);
  
  	p = php_base64_encode_impl(str, length, p, flags);
-@@ -1238,7 +1258,10 @@
+@@ -1238,7 +1261,10 @@
  		Z_PARAM_STRING(str, str_len)
  	ZEND_PARSE_PARAMETERS_END();
  
@@ -78,14 +89,3 @@ diff --git a/ext/standard/base64.c b/ext/standard/base64.c
  	RETURN_STR(result);
  }
  /* }}} */
-diff --git a/ext/standard/base64.h b/ext/standard/base64.h
---- a/ext/standard/base64.h
-+++ b/ext/standard/base64.h
-@@ -63,6 +63,7 @@
- 
- /* php_base64_encode_ex flags */
- #define PHP_BASE64_NO_PADDING 1
-+#define PHP_BASE64_FALLIBLE 2 /* Only PHP userland uses this fallible result contract */
- 
- PHPAPI extern zend_string *php_base64_encode_ex(const unsigned char *, size_t, zend_long flags);
- PHPAPI extern zend_string *php_base64_decode_ex(const unsigned char *, size_t, bool);

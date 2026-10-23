@@ -10,7 +10,7 @@ According to the official PHP [supported versions page](https://www.php.net/supp
 
 ## Patch contract
 
-The prototype [`patches/base64-fallible.patch`](../../patches/base64-fallible.patch) modifies only `ext/standard/base64.c` and `ext/standard/base64.h`:
+The prototype [`patches/base64-fallible.patch`](../../patches/base64-fallible.patch) modifies only `ext/standard/base64.c`:
 
 - `PHP_FUNCTION(base64_encode)` passes a new internal `PHP_BASE64_FALLIBLE` flag.
 - Five allocation sites including generic and SIMD implementations propagate a NULL on allocation failure.
@@ -47,3 +47,7 @@ The `upstream-readiness.yml` workflow extends validation to ZTS builds for PHP 8
 8. Seek maintainer review before considering wider backports.
 
 The ForgeBlue lab repository is not the PHP upstream repository. An accepted or merged contribution is confirmed only by action in `php/php-src`.
+
+## Upstream revision after initial PR
+
+[PHP upstream draft PR #24618](https://github.com/php/php-src/pull/24618) was created with three files. The next revision keeps the private `PHP_BASE64_FALLIBLE` macro inside `base64.c`, avoiding an unnecessary change to the public `base64.h` header. The automated `ABI break` label originally matched a filename glob `ext/standard/*.h` and does not itself prove ABI breakage. Retest the revised patch before synchronizing with the existing upstream PR.

@@ -19,7 +19,7 @@ Usage:
   bash scripts/submit_upstream_base64.sh [--prepare-only|--submit-draft] [--workdir PATH]
 
 Modes:
-  --prepare-only   (default) Clone current PHP-8.4 and stage exactly three files.
+  --prepare-only   (default) Clone current PHP-8.4 and stage exactly two files.
                    Does NOT create a fork, push a branch, or open a PR.
   --submit-draft   Requires authenticated GitHub CLI and configured git identity.
                    Creates fork if missing, pushes an upstream topic branch, and
@@ -91,14 +91,12 @@ cp "$PHPT_SOURCE" "$WORKDIR/$PHPT_DEST"
 
 git -C "$WORKDIR" add -- \
   ext/standard/base64.c \
-  ext/standard/base64.h \
   "$PHPT_DEST"
 git -C "$WORKDIR" diff --cached --check
 
 # Protect against accidentally sending lab files or unrelated PHP changes.
 expected="$(printf '%s\n' \
   ext/standard/base64.c \
-  ext/standard/base64.h \
   "$PHPT_DEST" | LC_ALL=C sort)"
 actual="$(git -C "$WORKDIR" diff --cached --name-only | LC_ALL=C sort)"
 if [[ "$actual" != "$expected" ]]; then
@@ -107,7 +105,7 @@ if [[ "$actual" != "$expected" ]]; then
   exit 1
 fi
 
-printf '\nProposed upstream change (exactly three files):\n'
+printf '\nProposed upstream change (exactly two files):\n'
 git -C "$WORKDIR" diff --cached --stat
 echo "Working directory: $WORKDIR"
 echo "Source SHA: $SOURCE_SHA"
