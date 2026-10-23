@@ -3,6 +3,7 @@
 import argparse
 import datetime
 import json
+import re
 import resource
 import subprocess
 from pathlib import Path
@@ -71,7 +72,12 @@ def main():
     parser.add_argument("--cases", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--snapshot", required=True)
+    parser.add_argument("--source-sha-file", required=True, type=Path)
+    parser.add_argument("--build-config", required=True)
     args = parser.parse_args()
+    sha = args.source_sha_file.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        parser.error("invalid pinned source SHA")
     results = {}
     for case in CASES:
         script = args.cases / (case + ".php")
@@ -84,6 +90,8 @@ def main():
         "schema": 1,
         "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "snapshot": args.snapshot,
+        "source_sha": sha,
+        "build_config": args.build_config,
         "php_binary": str(args.php),
         "policy": {"memory_limit": "16M", "hard_limit_percent": 200,
                    "address_space_limit_bytes": AS_LIMIT, "timeout_seconds": TIMEOUT},

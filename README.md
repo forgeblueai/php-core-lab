@@ -26,8 +26,14 @@ Each job is capped at 45 minutes, and independent OOM probes have a 12-second ti
 
 The `tests/*.phpt` files are ordinary functional smoke tests. The `oom_cases/*.php` scripts record how the engine behaves when an allocation request exceeds its memory limits. `scripts/probe.py` records raw exit codes and whether a registered shutdown function executed. Only the non-OOM control case is a pass/fail gate. The other results are **observations**, not CI failures or confirmed bugs.
 
-The workflow deliberately does **not** run unpublished exploit proofs, historical vulnerable PHP versions, or third-party pull-request code with privileged credentials. ASan and historical comparisons are separate future stages.
+The workflow deliberately does **not** run unpublished exploit proofs, historical vulnerable PHP versions, or third-party pull-request code with privileged credentials. The separate sanitizer workflow builds the patched PHP 8.5.12 with Clang ASan+UBSan and runs selected PHPT smoke tests using `--asan` and `USE_ZEND_ALLOC=0`. It deliberately does **not** run OOM probes under ASan: ASan reserves large virtual address ranges, invalidating normal RLIMIT_AS constraints. Historical unpatched comparisons remain a separate future stage.
 
 ## Provenance
 
 Project: ForgeBlue AI research lab, not affiliated with the PHP Group. Changes intended for PHP itself should be contributed upstream via a focused PHPT or patch after reproducing the issue and checking for duplicate work.
+
+## Evidence comparison and sanitizer CI
+
+- [`baseline.yml`](.github/workflows/baseline.yml) creates two pinned debug artifacts and, only after both pass, downloads them into a third job. `scripts/compare.py` validates the embedded upstream source SHAs and control cases before publishing Markdown, CSV, and JSON.
+- [`sanitizers.yml`](.github/workflows/sanitizers.yml) separately compiles PHP 8.5.12 with Clang AddressSanitizer and UndefinedBehaviorSanitizer. It uses `--asan` with system allocation for independent instrumentation; memory-exhaustion behavior here is **not directly comparable** with the normal Zend allocator.
+- A green CI run validates only the selected PHPT tests. It does not prove absence of other security bugs. Any potential new security issue follows the private reporting policy.
