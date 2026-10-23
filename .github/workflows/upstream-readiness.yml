@@ -100,7 +100,12 @@ jobs:
               ../tests/regressions/base64_correctness.phpt \
               ../tests/regressions/base64_oom.phpt \
               ../tests/regressions/base64_internal_callers.phpt
-          ) 2>&1 | tee evidence/phpt-zts.log
+          ) 2>&1 | tee evidence/phpt-zts.log || {
+            echo 'PHPT test failure; collecting differences:' | tee evidence/failure-diff.txt
+            find tests/regressions -type f -name 'base64_internal_callers.diff' \
+              -print -exec cat {} \\; | tee -a evidence/failure-diff.txt
+            exit 1
+          }
 
       - name: Publish logs for human review
         if: always()
