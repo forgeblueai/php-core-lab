@@ -37,3 +37,7 @@ Project: ForgeBlue AI research lab, not affiliated with the PHP Group. Changes i
 - [`baseline.yml`](.github/workflows/baseline.yml) creates two pinned debug artifacts and, only after both pass, downloads them into a third job. `scripts/compare.py` validates the embedded upstream source SHAs and control cases before publishing Markdown, CSV, and JSON.
 - [`sanitizers.yml`](.github/workflows/sanitizers.yml) separately compiles PHP 8.5.12 with Clang AddressSanitizer and UndefinedBehaviorSanitizer. It uses `--asan` with system allocation for independent instrumentation; memory-exhaustion behavior here is **not directly comparable** with the normal Zend allocator.
 - A green CI run validates only the selected PHPT tests. It does not prove absence of other security bugs. Any potential new security issue follows the private reporting policy.
+
+## OOM contract research
+
+The [base64 allocation boundary](docs/findings/base64-oom-contract.md) records a **known, unpatched-in-this-baseline public regression candidate** from [upstream PHP issue #24492](https://github.com/php/php-src/issues/24492), not a new CVE. Its experimental probe is bounded and runs only on pinned **patched** PHP releases. The optimized and generic Base64 encoding routines share a non-fallible allocation contract with existing extension call sites, so no upstream C patch is attempted without caller-by-caller review.

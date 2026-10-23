@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "report_date": "2026-10-23",
+  "upstream_issue": "https://github.com/php/php-src/issues/24492",
+  "ci_run": 39993301060,
+  "sanitizer_run": 39993301061,
+  "case_policy": {
+    "memory_limit": "16M",
+    "hard_limit_percent": 200,
+    "hard_limit_bytes": 33554432,
+    "rlimit_as_bytes": 536870912,
+    "timeout_seconds": 12
+  },
+  "evidence": [
+    {
+      "snapshot": "php-8.4.27",
+      "sha": "00d8bae801541db0d95a698e108bb4b1b273fe6e",
+      "case": "base64_encode_growth",
+      "input_mib": 14,
+      "input_ready": false,
+      "exit_code": 255,
+      "shutdown": true,
+      "diagnostic": "Allowed memory size exhausted",
+      "requested_bytes": 14684160
+    },
+    {
+      "snapshot": "php-8.4.27",
+      "sha": "00d8bae801541db0d95a698e108bb4b1b273fe6e",
+      "case": "base64_encode_13m",
+      "input_mib": 13,
+      "input_ready": true,
+      "exit_code": 137,
+      "shutdown": false,
+      "diagnostic": "Hard memory limit exhausted",
+      "requested_bytes": 18178048
+    },
+    {
+      "snapshot": "php-8.5.12",
+      "sha": "136e049ac10b032c83018e65b63b6df858943750",
+      "case": "base64_encode_growth",
+      "input_mib": 14,
+      "input_ready": false,
+      "exit_code": 255,
+      "shutdown": true,
+      "diagnostic": "Allowed memory size exhausted",
+      "requested_bytes": 14684160
+    },
+    {
+      "snapshot": "php-8.5.12",
+      "sha": "136e049ac10b032c83018e65b63b6df858943750",
+      "case": "base64_encode_13m",
+      "input_mib": 13,
+      "input_ready": true,
+      "exit_code": 137,
+      "shutdown": false,
+      "diagnostic": "Hard memory limit exhausted",
+      "requested_bytes": 18178048
+    }
+  ],
+  "classification": "Known public OOM behavior, not a new security vulnerability."
+}

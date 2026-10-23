@@ -18,7 +18,8 @@ class ComparisonTests(unittest.TestCase):
         self.lock = self.root / "refs.json"
         self.pins = {"php-8.4.27": "a" * 40, "php-8.5.12": "b" * 40}
         self.lock.write_text(json.dumps({"entries": self.pins}))
-        self.cases = ("control", "sprintf_width", "pack_pad", "bin2hex_growth", "urlencode_growth")
+        self.cases = ("control", "sprintf_width", "pack_pad", "bin2hex_growth",
+            "base64_encode_growth", "base64_encode_13m", "urlencode_growth")
         for key, sha in self.pins.items():
             folder = self.input / ("evidence-" + key)
             folder.mkdir(parents=True)
@@ -31,7 +32,7 @@ class ComparisonTests(unittest.TestCase):
     def test_generates_report(self):
         out = build_report(self.input, self.lock, self.output)
         self.assertEqual(out["differences"], [])
-        self.assertEqual(len(out["rows"]), 10)
+        self.assertEqual(len(out["rows"]), len(self.pins) * len(self.cases))
         self.assertTrue((self.output / "oom-comparison.md").exists())
 
     def test_rejects_wrong_sha(self):

@@ -5,9 +5,11 @@ import csv
 import json
 from pathlib import Path
 
-CASES = ("control", "sprintf_width", "pack_pad", "bin2hex_growth", "urlencode_growth")
+CASES = ("control", "sprintf_width", "pack_pad", "bin2hex_growth",
+    "base64_encode_growth", "base64_encode_13m", "urlencode_growth")
 HEADERS = ("snapshot", "source_sha", "build_config", "case", "classification",
-           "returncode", "shutdown_seen", "hard_limit_message", "soft_limit_message")
+           "returncode", "shutdown_seen", "input_ready_seen",
+           "hard_limit_message", "soft_limit_message")
 
 
 def build_report(input_dir: Path, lock_path: Path, output_dir: Path) -> dict:
@@ -45,6 +47,7 @@ def build_report(input_dir: Path, lock_path: Path, output_dir: Path) -> dict:
                    "classification": test.get("classification"),
                    "returncode": test.get("returncode"),
                    "shutdown_seen": test.get("shutdown_seen"),
+                   "input_ready_seen": test.get("input_ready_seen"),
                    "hard_limit_message": test.get("hard_limit_message"),
                    "soft_limit_message": test.get("soft_limit_message")}
             rows.append(row)
@@ -60,7 +63,8 @@ def build_report(input_dir: Path, lock_path: Path, output_dir: Path) -> dict:
     for case in CASES:
         values = [(records[s]["results"][case].get("classification"),
                    records[s]["results"][case].get("returncode"),
-                   records[s]["results"][case].get("shutdown_seen")) for s in snapshots]
+                   records[s]["results"][case].get("shutdown_seen"),
+                   records[s]["results"][case].get("input_ready_seen")) for s in snapshots]
         matrix.append((case, values))
         if len(set(values)) > 1:
             differences.append(case)
@@ -82,7 +86,8 @@ def build_report(input_dir: Path, lock_path: Path, output_dir: Path) -> dict:
         "| --- | " + " | ".join(["---"] * len(snapshots)) + " |",
     ]
     for case, values in matrix:
-        cells = [f"{c} (exit {code}; shutdown {shutdown})" for c, code, shutdown in values]
+        cells = [f"{c} (exit {code}; shutdown {shutdown}; input ready {ready})"
+                 for c, code, shutdown, ready in values]
         markdown.append("| " + case + " | " + " | ".join(cells) + " |")
     markdown += ["", f"Behavioral differences: {', '.join(differences) if differences else 'none observed'}",
                  "", "For each case, 'exit 137' means hard limit only when the corresponding",
