@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "snapshot_date": "2026-10-23",
+  "upstream": "https://github.com/php/php-src.git",
+  "audited_commit": "31c0ea7d7ff1d1fccb6492e52dab544011628065",
+  "entries": {
+    "php-8.5.12": "136e049ac10b032c83018e65b63b6df858943750",
+    "php-8.4.27": "00d8bae801541db0d95a698e108bb4b1b273fe6e"
+  }
+}
