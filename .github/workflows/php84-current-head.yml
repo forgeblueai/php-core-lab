@@ -1,0 +1,146 @@
+name: PHP 8.4 Current Head — Upstream Candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/php84-current-head.yml'
+      - 'patches/base64-fallible.patch'
+      - 'upstream/**'
+      - 'docs/upstream/php-src-pr.md'
+      - 'scripts/probe.py'
+      - 'scripts/check_base64_patch.py'
+      - 'oom_cases/**'
+      - 'tests/regressions/base64_internal_callers.phpt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: current-head-php84-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  current-head:
+    # No privileged execution of code from external fork pull requests.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        zts: ['nts', 'zts']
+    name: PHP-8.4 HEAD / ${{ matrix.zts }} / before-after
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install PHP build prerequisites
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake bison re2c pkg-config build-essential \
+            libxml2-dev libsqlite3-dev libonig-dev libssl-dev
+
+      - name: Fetch current official PHP-8.4 branch and record its SHA
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          git init -q php-src
+          git -C php-src remote add origin https://github.com/php/php-src.git
+          git -C php-src fetch --depth=1 --no-tags origin refs/heads/PHP-8.4
+          git -C php-src checkout -q --detach FETCH_HEAD
+          git -C php-src rev-parse HEAD | tee evidence/source-sha.txt
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          sha256sum patches/base64-fallible.patch | tee evidence/patch-sha256.txt
+
+      - name: Build unmodified latest PHP 8.4
+        env:
+          MODE: ${{ matrix.zts }}
+        run: |
+          set -Eeuo pipefail
+          zts_option=""
+          if [[ "$MODE" == "zts" ]]; then zts_option="--enable-zts"; fi
+          (
+            cd php-src
+            ./buildconf --force
+            ./configure --disable-all --enable-cli --enable-debug \
+              $zts_option --enable-zend-test --enable-session \
+              --enable-xml --with-libxml --enable-mbstring \
+              --with-openssl --with-iconv --enable-soap
+            make -j2
+          ) > evidence/build-before.log 2>&1 || {
+            tail -n 100 evidence/build-before.log
+            exit 1
+          }
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          "$PHP_BINARY" -n -v | tee evidence/php-version.txt
+          "$PHP_BINARY" -n -i | grep 'Thread Safety =>' | tee evidence/thread-safety.txt
+
+      - name: Record existing behavior before the patch
+        env:
+          MODE: ${{ matrix.zts }}
+        run: |
+          python3 scripts/probe.py \
+            --php "$PWD/php-src/sapi/cli/php" \
+            --cases oom_cases \
+            --snapshot "PHP-8.4-head-${MODE}" \
+            --source-sha-file evidence/source-sha.txt \
+            --build-config "debug-${MODE}-before" \
+            --output evidence/before.json
+
+      - name: Apply patch and rebuild the same checkout
+        run: |
+          set -Eeuo pipefail
+          git -C php-src apply --check ../patches/base64-fallible.patch
+          git -C php-src apply ../patches/base64-fallible.patch
+          (
+            cd php-src
+            make -j2
+          ) > evidence/build-after.log 2>&1 || {
+            tail -n 100 evidence/build-after.log
+            exit 1
+          }
+          git -C php-src diff --stat | tee evidence/patch-stat.txt
+
+      - name: Compare bounded OOM behavior before and after
+        env:
+          MODE: ${{ matrix.zts }}
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/probe.py \
+            --php "$PWD/php-src/sapi/cli/php" \
+            --cases oom_cases \
+            --snapshot "PHP-8.4-head-${MODE}" \
+            --source-sha-file evidence/source-sha.txt \
+            --build-config "debug-${MODE}-patched" \
+            --output evidence/after.json
+          python3 scripts/check_base64_patch.py \
+            --before evidence/before.json \
+            --after evidence/after.json \
+            --output evidence/check.json
+
+      - name: Run upstream-compatible PHPTs and extension caller check
+        run: |
+          set -Eeuo pipefail
+          PHP_BINARY="$PWD/php-src/sapi/cli/php"
+          (
+            cd php-src
+            "$PHP_BINARY" -n run-tests.php -q -p "$PHP_BINARY" \
+              ext/standard/tests/url/base64_*.phpt \
+              ../upstream/ext/standard/tests/url/gh24492_base64_encode_oom.phpt \
+              ../tests/regressions/base64_correctness.phpt \
+              ../tests/regressions/base64_internal_callers.phpt
+          ) 2>&1 | tee evidence/php84-head-phpt.log
+
+      - name: Upload evidence, including failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php84-current-${{ matrix.zts }}-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 7
