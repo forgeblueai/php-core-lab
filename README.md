@@ -41,3 +41,7 @@ Project: ForgeBlue AI research lab, not affiliated with the PHP Group. Changes i
 ## OOM contract research
 
 The [base64 allocation boundary](docs/findings/base64-oom-contract.md) records a **known, unpatched-in-this-baseline public regression candidate** from [upstream PHP issue #24492](https://github.com/php/php-src/issues/24492), not a new CVE. Its experimental probe is bounded and runs only on pinned **patched** PHP releases. The optimized and generic Base64 encoding routines share a non-fallible allocation contract with existing extension call sites, so no upstream C patch is attempted without caller-by-caller review.
+
+## Upstream contribution
+
+- [php/php-src#24618 — Fix GH-24492: handle base64_encode() soft OOM](https://github.com/php/php-src/pull/24618): a proposed targeted fix with a reproducer and PHPT coverage. The pull request remains **open and unmerged** (last verified 2026-11-20). It is not presented as an accepted upstream change or a new CVE.
