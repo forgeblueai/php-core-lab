@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_at": "2026-11-28",
+  "project": "forgeblueai/php-core-lab",
+  "topic": "PHP base64_encode() soft out-of-memory handling (public GH-24492)",
+  "classification": "known public OOM behavior; not a new vulnerability or CVE",
+  "upstream": {
+    "repository": "php/php-src",
+    "issue": "https://github.com/php/php-src/issues/24492",
+    "pull_request": "https://github.com/php/php-src/pull/24618",
+    "state": "open",
+    "draft": false,
+    "merged": false,
+    "review_state": "Ready for Review; requested reviewer bukka; maintainer acceptance not observed",
+    "base": {
+      "branch": "PHP-8.4",
+      "sha": "9af71942c6610852dd6350cf19e278628c8b5b60"
+    },
+    "head": {
+      "branch": "fix/gh-24492-base64-soft-oom",
+      "sha": "a9fa71ced100966ef1e3e7c1cc116a06cb5717c2"
+    },
+    "changed_files": [
+      "ext/standard/base64.c",
+      "ext/standard/tests/url/gh24492_base64_encode_oom.phpt"
+    ],
+    "patch_sha256": null,
+    "patch_digest_note": "Not calculated. The connected GitHub response exposed per-file patch fragments rather than a canonical raw patch file. Use the exact head SHA above as the immutable patch revision identifier; calculate a standalone digest from a git-generated patch in a full checkout if required."
+  },
+  "pinned_baselines": [
+    {
+      "version": "PHP 8.4.27",
+      "source_sha": "00d8bae801541db0d95a698e108bb4b1b273fe6e",
+      "role": "original reproducible OOM baseline"
+    },
+    {
+      "version": "PHP 8.5.12",
+      "source_sha": "136e049ac10b032c83018e65b63b6df858943750",
+      "role": "original reproducible OOM baseline"
+    }
+  ],
+  "experiment_policy": {
+    "build_config": "debug for original bounded baseline probes",
+    "php_memory_limit": "16M",
+    "memory_hard_limit_percent": 200,
+    "address_space_limit_bytes": 536870912,
+    "timeout_seconds": 12,
+    "records": [
+      "exact PHP source SHA",
+      "build configuration",
+      "return code",
+      "input-ready marker",
+      "shutdown marker",
+      "hard/soft memory-limit diagnostics",
+      "bounded stdout tail",
+      "bounded stderr tail"
+    ],
+    "note": "The 14 MiB case is an input-construction control and must not be interpreted as Base64 output-allocation failure."
+  },
+  "original_observations": [
+    {
+      "version": "PHP 8.4.27",
+      "source_sha": "00d8bae801541db0d95a698e108bb4b1b273fe6e",
+      "case": "base64_encode_growth",
+      "input_mib": 14,
+      "input_ready": false,
+      "exit_code": 255,
+      "shutdown": true,
+      "diagnostic": "Allowed memory size exhausted",
+      "requested_bytes": 14684160,
+      "interpretation": "input construction failed before Base64"
+    },
+    {
+      "version": "PHP 8.4.27",
+      "source_sha": "00d8bae801541db0d95a698e108bb4b1b273fe6e",
+      "case": "base64_encode_13m",
+      "input_mib": 13,
+      "input_ready": true,
+      "exit_code": 137,
+      "shutdown": false,
+      "diagnostic": "Hard memory limit exhausted",
+      "requested_bytes": 18178048,
+      "interpretation": "failure after entering Base64"
+    },
+    {
+      "version": "PHP 8.5.12",
+      "source_sha": "136e049ac10b032c83018e65b63b6df858943750",
+      "case": "base64_encode_growth",
+      "input_mib": 14,
+      "input_ready": false,
+      "exit_code": 255,
+      "shutdown": true,
+      "diagnostic": "Allowed memory size exhausted",
+      "requested_bytes": 14684160,
+      "interpretation": "input construction failed before Base64"
+    },
+    {
+      "version": "PHP 8.5.12",
+      "source_sha": "136e049ac10b032c83018e65b63b6df858943750",
+      "case": "base64_encode_13m",
+      "input_mib": 13,
+      "input_ready": true,
+      "exit_code": 137,
+      "shutdown": false,
+      "diagnostic": "Hard memory limit exhausted",
+      "requested_bytes": 18178048,
+      "interpretation": "failure after entering Base64"
+    }
+  ],
+  "candidate_patch": {
+    "summary": "Internal fallible allocation flag private to base64.c; five generic/x86 SIMD allocation sites use safe fallible allocation; userland base64_encode() returns RETURN_OOM() on NULL.",
+    "public_header_unchanged": true,
+    "regression_test": "ext/standard/tests/url/gh24492_base64_encode_oom.phpt"
+  },
+  "evidence_runs": [
+    {
+      "system": "ForgeBlue PHP Core Lab",
+      "run_id": 39996126737,
+      "url": "https://github.com/forgeblueai/php-core-lab/actions/runs/39996126737",
+      "scope": "Pinned PHP 8.4.27/8.5.12 before-after evidence, as referenced by upstream PR description",
+      "evidence_class": "historical hosted CI"
+    },
+    {
+      "system": "ForgeBlue PHP Core Lab",
+      "run_id": 39999223589,
+      "url": "https://github.com/forgeblueai/php-core-lab/actions/runs/39999223589",
+      "scope": "ZTS and selected extension-caller PHPT tests; PR description reports 9/9 on both pinned versions",
+      "evidence_class": "historical hosted CI"
+    },
+    {
+      "system": "ForgeBlue PHP Core Lab",
+      "run_id": 40000337560,
+      "url": "https://github.com/forgeblueai/php-core-lab/actions/runs/40000337560",
+      "scope": "PHP-8.4 current-head NTS/ZTS focused tests on the source revision stated in the PR description at that time",
+      "evidence_class": "historical hosted CI"
+    },
+    {
+      "system": "PHP upstream",
+      "run_id": 45127944786,
+      "url": "https://github.com/php/php-src/actions/runs/45127944786",
+      "commit": "a9fa71ced100966ef1e3e7c1cc116a06cb5717c2",
+      "status": "completed",
+      "conclusion": "success",
+      "job_snapshot": {
+        "successful": 9,
+        "skipped": 7,
+        "failed": 0
+      },
+      "scope": "Upstream PR-head CI; job details retrieved read-only on 2026-11-28",
+      "evidence_class": "current hosted CI metadata"
+    }
+  ],
+  "limits": [
+    "No local test suite was rerun during the 2026-11-28 documentation pass.",
+    "CI skipped jobs are not test coverage.",
+    "The macOS ARM64 job's general Test step was skipped; ARM64 runtime test coverage is not established.",
+    "AVX2 runtime was confirmed in historical local research; AVX-512 runtime remains unverified.",
+    "ASan/UBSan is targeted and not exhaustive memory-safety validation; separate baseline uses USE_ZEND_ALLOC=0 and is not directly comparable to normal Zend allocator OOM behavior.",
+    "Optional-extension and third-party ABI/platform coverage are not exhaustive.",
+    "Full historical build logs and workflow artifacts have seven-day retention; committed observations and this manifest preserve selected evidence only.",
+    "Standalone patch SHA-256 is not recorded; exact PR head SHA is the immutable patch revision identifier."
+  ],
+  "verification": {
+    "repository_metadata_rechecked": "2026-11-28",
+    "pr_metadata_rechecked": "2026-11-28",
+    "upstream_ci_run_status_rechecked": "2026-11-28",
+    "local_tests_run": "no",
+    "workflow_dispatch_or_rerun": "no",
+    "source_or_upstream_pr_modified": "no"
+  }
+}
